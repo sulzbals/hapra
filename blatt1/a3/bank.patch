@@ -1,0 +1,103 @@
+diff -ruN orig/var/www/html/application/controller/card2card.php new/var/www/html/application/controller/card2card.php
+--- orig/var/www/html/application/controller/card2card.php	2017-11-14 21:20:07.000000000 +0100
++++ new/var/www/html/application/controller/card2card.php	2019-11-04 15:45:14.735323869 +0100
+@@ -209,7 +209,10 @@
+         {
+             if($_REQUEST['export'] === 'CSV')
+             {
+-                $transactions = $this->model->getAllTransactions($_REQUEST['id']);
++                if($_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] || $_SESSION['userdata']['id'] === 1)
++                    $transactions = $this->model->getAllTransactions($_REQUEST['id']);
++                else
++                    $transactions = $this->model->getAllTransactions($_SESSION['userdata']['id']);
+ 
+                 $csvArray = array(
+                     array('id', 'From card', 'To card', 'Count', 'Date', 'Message' )
+@@ -249,8 +252,10 @@
+             }
+             elseif($_REQUEST['export'] === 'XML')
+             {
+-
+-                $transactions = $this->model->getAllTransactions($_REQUEST['id']);
++                if($_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] || $_SESSION['userdata']['id'] === 1)
++                    $transactions = $this->model->getAllTransactions($_REQUEST['id']);
++                else
++                    $transactions = $this->model->getAllTransactions($_SESSION['userdata']['id']);
+ 
+                 if($transactions)
+                 {
+@@ -300,7 +305,7 @@
+     {
+         if(!$this->authTest())
+             Bank::exit('/');
+-        elseif(!empty($user_id) && is_numeric($user_id))
++        elseif(($_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] || $_SESSION['userdata']['id'] === 1) && !empty($user_id) && is_numeric($user_id))
+         {
+             $transactions = $this->model->getTransactionsHistory($user_id);
+             if($transactions)
+@@ -317,6 +322,6 @@
+         if(!$this->authTest())
+             Bank::exit('/');
+         elseif($_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] || $_SESSION['userdata']['id'] === 1)
+-            echo Logger::read();
++            echo htmlspecialchars(Logger::read());
+     }
+ }
+diff -ruN orig/var/www/html/application/controller/index.php new/var/www/html/application/controller/index.php
+--- orig/var/www/html/application/controller/index.php	2017-11-14 21:20:07.000000000 +0100
++++ new/var/www/html/application/controller/index.php	2019-11-04 15:17:53.899503885 +0100
+@@ -158,7 +158,7 @@
+                 echo json_encode(array('error' => 'Wrong Content-Type'));
+             }
+         }
+-        else
++        elseif($_SERVER['REMOTE_ADDR'] == $_SERVER['SERVER_ADDR'] || $_SESSION['userdata']['id'] === 1)
+         {
+             $users = $this->model->getUsersList();
+ 
+diff -ruN orig/var/www/html/application/controller/support.php new/var/www/html/application/controller/support.php
+--- orig/var/www/html/application/controller/support.php	2017-11-14 21:20:07.000000000 +0100
++++ new/var/www/html/application/controller/support.php	2019-11-04 15:51:27.102383743 +0100
+@@ -58,7 +58,7 @@
+         {
+             $parse = parse_url($_GET['url']);
+ 
+-            if(isset($parse['host']) && $parse['host'] == $_SERVER['SERVER_NAME'])
++            if(isset($parse['scheme']) && $parse['scheme'] == 'http' && isset($parse['host']) && $parse['host'] == $_SERVER['SERVER_NAME'])
+             {
+                 $curl = curl_init();
+ 
+@@ -76,7 +76,7 @@
+             }
+             else
+             {
+-                $error = 'Only '.$_SERVER['SERVER_NAME'].'!';
++                $error = 'Only http://'.$_SERVER['SERVER_NAME'].'!';
+                 echo json_encode(array('error' => $error));
+             }
+         }
+diff -ruN orig/var/www/html/application/view/standard/card2card.php new/var/www/html/application/view/standard/card2card.php
+--- orig/var/www/html/application/view/standard/card2card.php	2017-11-14 21:20:07.000000000 +0100
++++ new/var/www/html/application/view/standard/card2card.php	2019-11-04 16:57:36.772141647 +0100
+@@ -44,10 +44,10 @@
+ 					<i><?php echo $fields['date']; ?></i>
+ 				</td>
+ 				<td>
+-					<i><?php echo $fields['from_card'],' (',$fields['from_card_username'],')'; ?></i>
++					<i><?php echo htmlspecialchars($fields['from_card'],' (',$fields['from_card_username'],')'); ?></i>
+ 				</td>
+ 				<td>
+-					<i><?php echo $fields['to_card'],' (',$fields['to_card_username'],')'; ?></i>
++					<i><?php echo htmlspecialchars($fields['to_card'],' (',$fields['to_card_username'],')'); ?></i>
+ 				</td>
+ 				<td>
+ 					<i><?php echo $fields['count'];?>$</i>
+@@ -56,7 +56,7 @@
+ 					<input 
+ 						type='text'
+ 						id="<?php echo 'transactionMessage_',$fields['id']; ?>"
+-						value='<?php echo $fields['message']; ?>'
++						value='<?php echo htmlspecialchars($fields['message']); ?>'
+ 					>
+ 				</td>
+ 			</tr>
