@@ -53,7 +53,7 @@ One can retrieve all registered usernames and their respective ids by creating a
 
 ### Patch
 
-Changing the statement "else" in controller/index.php:161 to an "elseif" with a condition identical to the one in controller/card2card.php:319 will restrict common users from running the routine that retrieves the user list.
+Changing the statement "else" in controller/index.php:161 to an "elseif" to check if the user is authenticated as support will restrict common users from running the routine that retrieves the user list.
 
 ##  5) Command execution
 
@@ -67,7 +67,7 @@ One can retrieve all user's transactions by accessing /card2card/transactionhist
 
 ### Patch
 
-Adding a condition to the "elseif" statement in controller/card2card.php:303 identical to the one in controller/card2card.php:319 will restrict common users from running the routine that retrieves the transaction history.
+Adding a condition to the "elseif" statement in controller/card2card.php:303 to check if the user is authenticated as support will restrict common users from running the routine that retrieves the transaction history.
 
 ##  6) Improper authentication
 
