@@ -27,6 +27,7 @@ One can inject HTML code to close the input tag, followed by Javascript code wra
 ### Patch
 
 Wrapping the string echoed in view/standard/card2card.php:59 with htmlspecialshars() will prevent the manipulation of tags to insert new elements. Therefore, no script will be executed.
+
 ##  3) Stored XSS
 
 ### Vulnerability
@@ -97,7 +98,21 @@ One can lead the server to echo the contents of a local file to the response via
 
 Adding the condition that the parsed scheme must be "http" on controller/support.php:61 will prevent cURL from accessing anything that is not under `http://server_host`. Therefore an attacker will not be able to bypass the server by using a FILE protocol. Updating the error message on :79 is a good practice.
 
-##  8) Plain-text password storage (Bonus)
+##  8) Cross-site request forgery
+
+### Vulnerability
+
+There is no proper sanitizing on /card2card/export for exporting the history of transactions as XML.
+
+### Possible exploit
+
+One can inject XHTML code into the message field of a transaction, that will be rendered by the browser when exporting the history as XML.
+
+### Patch
+
+Wrapping the data echoed in controller/card2card.php:272 with htmlspecialshars() will escape any XHTML. Therefore, no fake page will be rendered and no scripts will be executed.
+
+##  9) Plain-text password storage (?)
 
 ### Vulnerability
 

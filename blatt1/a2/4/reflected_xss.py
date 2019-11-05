@@ -1,8 +1,4 @@
 import requests
-import re
-import js2py
-from jsmin import jsmin
-import jsbeautifier
 
 url = "http://10.0.23.22/myspray/"
 
