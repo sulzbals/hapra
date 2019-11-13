@@ -1,0 +1,11 @@
+Package: wireshark
+Version: 3.0.5-1
+Architecture: amd64
+Maintainer: Balint Reczey <rbalint@ubuntu.com>
+Depends: wireshark-qt (= 3.0.5-1)
+Conflicts: ethereal (<< 1.0.0-3)
+Replaces: ethereal (<< 1.0.0-3)
+Section: net
+Priority: optional
+Homepage: http://www.wireshark.org/
+Description: Fake dummy wireshark package for demonstration
