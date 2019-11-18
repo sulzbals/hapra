@@ -1,14 +1,20 @@
 #! /usr/bin/env python3
 
-from const import *
-
 import socket
+import argparse
+
+def get_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--ip", dest="ip", help="Host IP", default="10.0.23.15")
+    options = parser.parse_args()
+    return options
 
 ports = [210, 2100, 2121, 21000]
 
+# Random username:
 user = "invalid_user"
 
-# After a little research is possible to determine the 331 response messages for each daemon:
+# After a little research it is possible to determine the 331 response messages for each daemon:
 daemon_responses = {
     "vs-ftpd": "331 Please specify the password.",              # From docker image fauria/vsftpd
     "pro-ftpd": "331 Password required for " + user,            # From ftp.freeradius.org
@@ -19,11 +25,13 @@ daemon_responses = {
 port_responses = {}
 
 if __name__ == "__main__":
+    options = get_arguments()
+
     for port in ports:
         # Open a socket:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        sock.connect((ip, port))
+        sock.connect((options.ip, port))
         sock.recv(1024)
 
         # The response will be 331:

@@ -1,9 +1,14 @@
 #! /usr/bin/env python3
 
-from const import *
-
 import socket
 import requests
+import argparse
+
+def get_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--ip", dest="ip", help="Host IP", default="10.0.23.15")
+    options = parser.parse_args()
+    return options
 
 # Get all open ports:
 def port_scan(ip):
@@ -35,7 +40,9 @@ def port_scan(ip):
     return ports
 
 if __name__ == "__main__":
-    url_prefix = "http://" + ip + ":"
+    options = get_arguments()
+
+    url_prefix = "http://" + options.ip + ":"
 
     # Associate each daemon to the ports it runs on with a
     # dictionary:
@@ -45,7 +52,7 @@ if __name__ == "__main__":
     s = requests.Session()
 
     # Try to speak in HTTP to each open port:
-    for port in port_scan(ip):
+    for port in port_scan(options.ip):
         # Try a GET HTTP request:
         try:
             r = s.get(url_prefix + str(port))
