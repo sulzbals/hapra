@@ -108,6 +108,6 @@ if __name__ == "__main__":
     key = payload[key_start:key_start+key_len]
 
     # Standard PEM formatting:
-    print(key_header.decode("ascii"))
-    print("\n".join(key.decode("ascii")[n:n+64] for n in range(0, key_len, 64)))
-    print(key_footer.decode("ascii"))
+    print(key_header.decode())
+    print("\n".join(key.decode()[n:n+64] for n in range(0, key_len, 64)))
+    print(key_footer.decode())
