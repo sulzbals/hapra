@@ -2,8 +2,13 @@
 
 import socket
 import struct
+import argparse
 
-host = "10.0.23.19"
+def get_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--ip", dest="ip", help="Host IP", default="10.0.23.19")
+    options = parser.parse_args()
+    return options
 
 client_hello = bytes.fromhex((
     # TLS header:
@@ -75,9 +80,11 @@ def recvTLS(sock):
     return contentType, version, payload
 
 if __name__ == "__main__":
+    options = get_arguments()
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    sock.connect((host, 443))
+    sock.connect((options.ip, 443))
 
     # Send Client Hello:
     sock.send(client_hello)
