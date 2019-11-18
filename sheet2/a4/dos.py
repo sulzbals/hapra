@@ -122,7 +122,7 @@ class Flood():
 
 def get_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", dest="host", help="Host")
+    parser.add_argument("--host", dest="host", default="10.0.23.14", help="Host")
     parser.add_argument("--port", dest="port", default="443", help="Port (default 443)")
     parser.add_argument("--max", dest="max", default="300", help="Maximum number of connections (default 300)")
     options = parser.parse_args()
