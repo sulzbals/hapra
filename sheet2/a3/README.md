@@ -4,9 +4,9 @@ There is a vulnerability on the sysadmin's update script: While most of the URLs
 
 #   Attack
 
-The attack consists in:
+The attack consists of:
 
-1. Building a fake debian package, that has the same metadata (name, version, dependencies, etc.) as the real one, and installs a shell script on /usr/bin/wireshark that creates the file ~/hacked.txt when executed. This way, when the sysadmin run "wireshark" as root, /root/hacked.txt will be created.
+1. Building a fake debian package, that has the same metadata as the original one.
 2. Spoofing, to be a man-in-the-middle of the gateway and the victim.
 3. Intercepting the packet addressed to the victim that contains the original package as payload.
 4. Replacing the payload by the fake debian package.
@@ -30,6 +30,19 @@ The attack consists in:
 
 `python3 debianspoof.py -v [VICTIM_IP] -g [GATEWAY_IP] -q [QUEUE_NUM]`
 
+## Debian package structure
+
+* usr/bin/wireshark: Shellscript that creates `~/hacked.txt` (so when running as root, `/root/hacked.txt` will be created).
+* DEBIAN/control: Control fields of the package. They are all identical to the original one's, except for the description (for demonstration purposes).
+* DEBIAN/install: Specifies that file `wireshark` is to be installed, so it will be copied to `/usr/bin/wireshark`.
+
+##  Test environment
+
+The attack was tested using two VMs running Ubuntu Bionic (minimal edition) connected to a libvirt virtual network. Notice that the fake package has the same dependencies as the real one, so installation will fail if they are missing.
+
 #   Prevention
 
-The prevention to this attack is simple: Never use HTTP to download packages, only HTTPS.
+The sysadmin could prevent this attack by either:
+
+* Updating the URL to use `https` instead of `http`;
+* Extracting the MD5sum of the downloaded package, then retrieving the expected one from the repository and comparing them. If they are not equal, do not install the package. The one respective to the wireshark package we are exploiting can be found on `https://ftp.fau.de/ubuntu/dists/eoan/universe/binary-amd64/Packages.gz`.
