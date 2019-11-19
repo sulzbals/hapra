@@ -6,7 +6,7 @@ There is a vulnerability on the sysadmin's update script: While most of the URLs
 
 The attack consists in:
 
-1. Building a fake debian package, that has the same metadata (name, version, dependencies, etc.) as the real one.
+1. Building a fake debian package, that has the same metadata (name, version, dependencies, etc.) as the real one, and installs a shell script on /usr/bin/wireshark that creates the file ~/hacked.txt when executed. This way, when the sysadmin run "wireshark" as root, /root/hacked.txt will be created.
 2. Spoofing, to be a man-in-the-middle of the gateway and the victim.
 3. Intercepting the packet addressed to the victim that contains the original package as payload.
 4. Replacing the payload by the fake debian package.
@@ -16,7 +16,7 @@ The attack consists in:
 
 1. Build the fake package:
 
-`equivs-build dummy.equivs`
+`dpkg-deb --build wireshark_3.0.5-1`
 
 2. Enable IP forwarding (as root):
 
@@ -29,3 +29,7 @@ The attack consists in:
 4. Run debianspoof (as root):
 
 `python3 debianspoof.py -v [VICTIM_IP] -g [GATEWAY_IP] -q [QUEUE_NUM]`
+
+#   Prevention
+
+The prevention to this attack is simple: Never use HTTP to download packages, only HTTPS.

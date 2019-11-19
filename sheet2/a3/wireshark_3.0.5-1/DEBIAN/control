@@ -8,4 +8,4 @@ Replaces: ethereal (<< 1.0.0-3)
 Section: net
 Priority: optional
 Homepage: http://www.wireshark.org/
-Description: Fake dummy wireshark package for demonstration
+Description: Fake wireshark package for demonstration

