@@ -1,0 +1,26 @@
+--- old/ping.pyx	2019-11-27 11:24:50.829264807 +0100
++++ new/ping.pyx	2019-11-27 11:58:23.171335366 +0100
+@@ -97,8 +97,11 @@
+ 
+ def verbose_ping(dest_addr, timeout, count, logfile, logmsg):
+     fd = 0
+-    if (logfile != ""): 
+-        fd = open(logfile, "a")
++    if (logfile != ""):
++        # Check if real (not effective) UID has permission:
++        if (os.access(logfile, os.W_OK)):
++            # If yes, open the file and get a descriptor:
++            fd = open(logfile, "a")
+     log_it(fd, logmsg); log_it(fd, "\n")
+     x = 0
+     while (x != count):
+@@ -118,7 +121,8 @@
+            time.sleep(1)
+         except KeyboardInterrupt:
+            break
+-    if (logfile != ""): 
++    # Check fd instead of path:
++    if (fd != 0): 
+         fd.close()
+  
+  
