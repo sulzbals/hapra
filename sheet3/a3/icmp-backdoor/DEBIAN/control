@@ -1,0 +1,6 @@
+Package: icmp-backdoor
+Version: 0.0.0-0
+Architecture: amd64
+Maintainer: Lucas Sulzbach <lucas.sulzbach@fau.de>
+Depends: python3
+Description: Backdoor that spawns reverse shells and communicates through ICMP
