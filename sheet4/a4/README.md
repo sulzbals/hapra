@@ -12,9 +12,3 @@ I spent a lot of time trying to figure out a way to overlay the dialog that asks
 I left some commented code lines on `Overlay.firstScreen` and `Overlay.secondScreen` that can be used to build transparent overlays, where the clickable regions are transparent red and the non-clickable ones are transparent blue, so one can see exactly what the user is lured into clicking.
 
 I did all the tests with the image `4 WVGA (Nexus S) API 24`. The dimensions of the views should be right for a clean install in an emulator running this image.
-
-##  Versuchen Sie Ihren Trojaner um die folgenden Funktionalitäten zu erweitern:
-
-##  • Verhindern Sie eine UI-basierte deinstallation Ihrer App und das Ausschalten Ihres Accessibility Services. (Klicken auf den UNINSTALL-Knopf in den App Einstellungen und Ziehen des App-Icons zum Uninstall-Feld auf dem Startbildschirm).
-
-##  • Installieren Sie eine zusätzliche App mit Ihrem Accessibility Service und geben Sie Ihr mindestens drei gefährliche Permissions.
