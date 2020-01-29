@@ -24,6 +24,8 @@ A `SEGMENTATION FAULT` happens when the game is closed, but the functionality of
 
 ### a) Wallhack: Modifizieren Sie das Spiel, so dass Sie horizontal durch Wände laufen können ohne dabei herunterzufallen. Tipp: Verändern Sie die Methode(n) collide.
 
+The executable `labrys.64.wallhack` contains the game with a wallhack. This was achieved by forcing the return value of the function `_ZN4Wall7collideEPfi` to be always `0x00`, so collisions with walls are never detected and the player can walk through them freely.
+
 ### b) Flyhack: Modifizieren Sie das Spiel, so dass Sie fliegen können. Tipp: Verändern Sie die Methode gravity.
 
 ### c) Speedhack: Modifizieren Sie das Spiel, so dass Sie schneller werden. Tipp: Verändern Sie den Multiplikator in step_forward oder save_state.
