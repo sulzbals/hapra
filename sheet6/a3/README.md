@@ -16,6 +16,10 @@ You can use `python3 key-gen.py -n [NUMBER_OF_KEYS]` to generate a number of ran
 
 ### b) Patch: Modifizeren Sie das Spiel, so dass es auch ohne Lizenz startet.
 
+The executable `labrys.64.cracked` works without a `license.key` file. I managed to do it by overwriting the beginning of the routine that is run when `fopen` fails with a jump to an address after the validation routine. Notice that the game will only work when the key file either does not exist or has a valid key, so if the file exists and does not contain a valid key, the game will not run.
+
+A `SEGMENTATION FAULT` happens when the game is closed, but the functionality of the game is not affected by the crack.
+
 ##  2. Cheating: Sie verschaffen sich Vorteile gegenüber Mitspielern indem Sie cheaten.
 
 ### a) Wallhack: Modifizieren Sie das Spiel, so dass Sie horizontal durch Wände laufen können ohne dabei herunterzufallen. Tipp: Verändern Sie die Methode(n) collide.
