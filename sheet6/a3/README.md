@@ -28,6 +28,8 @@ The executable `labrys.64.wallhack` contains the game with a wallhack. This was 
 
 ### b) Flyhack: Modifizieren Sie das Spiel, so dass Sie fliegen können. Tipp: Verändern Sie die Methode gravity.
 
+The executable `labrys.64.flyhack` contains the game with a wallhack. This was achieved by changing an instruction of the function `_ZN6Player10save_stateEv` so that the variable `flying` is always set to `0x01` independently of the value of `spellEagle`, so the Eagle Spell is always activated and the user can fly all the time.
+
 ### c) Speedhack: Modifizieren Sie das Spiel, so dass Sie schneller werden. Tipp: Verändern Sie den Multiplikator in step_forward oder save_state.
 
 ##  3. Exploitation: Sie verteilen selbst erstellte Levels um Ihre Mitspieler zu exploiten.
