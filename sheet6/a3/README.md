@@ -38,4 +38,15 @@ The executable `labrys.64.speedhack` contains the game with a speedhack. This wa
 
 ### a) Shellcode Injection: Gestalten Sie Level 5 derart, dass Schadcode auf dem Stack des Spielers ausgeführt wird. Beachten Sie, dass ASLR eingeschaltet und NX ausgeschaltet sind. Tipp: Verwenden Sie zur Demonstration den Shellcode von den Folien oder beliebigen Shellcode aus dem Internet, um /bin/sh auszuführen.
 
+The exploit consists of two parts:
+
+1. An one-lined string stored on `level5/labyrinth` that is big enough to overflow the buffer allocated on the stack and overwrite the return address;
+2. An environment variable containing the shellcode to be run, preceeded by a "NOP sled" to increase the size of the code and therefore the probability of it being executed.
+
+In order to perform the first part of the exploit, I used the `cyclic` method from `pwntools` to generate a large sequence (to cause a buffer overflow) and saved it to `level5/labyrinth`. Then I ran the game in `gdb` and found out which part of the sequence was loaded into the `EIP` ("raaf"). Finally I used the `cyclic_find` method to retrieve the part of the sequence that would overwrite the stack just until the position before the return address, concatenated it to a given address, and saved that to the labyrinth file. By doing this, the program flow is always redirected to that address when level 5 is selected.
+
+Now that we control the instruction pointer, we have to inject the shellcode and point to it. Since `ASLR` is enabled, the best we can do is having a good guess of where this code will be loaded to. That is why NOP sleding is used, so if the flow is redirected to any of the NOPs that were injected, the shellcode is executed as well. The shellcraft is injected by setting an environment variable (which is loaded to the stack) containing it.
+
+In order to perform the exploit, run `python3 shellcode-inject.py`. It will write a payload into `level5/labyrinth` that redirects the flow to the address `0xffa41fb8` and also will write the shellcraft to `shellcode.32`. Both files are included with the solution as well. If you keep running `SHELLCODE=$(cat shellcode.32) ./labrys.32`, eventually `0xffa41fb8` will point to some part of the shellcraft, and a shell will be spawned if you select level 5.
+
 ### b) Return Oriented Programming: Verwenden Sie nun die labrys_rop.{32,64} Binaries und beachten Sie, dass diese mit NX-Unterstützung kompiliert sind, d.h. starten Sie beliebigen Schadcode ohne ausführbaren Stack. Tipp: Tools wie github.com/JonathanSalwan/ROPgadget und github.com/sashs/Ropper unterstützen Sie bei der Suche nach Gadgets.
