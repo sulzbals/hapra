@@ -1,7 +1,5 @@
 #   Game Labrys (Aufgabe 3)
 
-##  Laden Sie sich das Spiel “Labrys” aus dem StudOn herunter. Für Hinweise zur Installation und Steuerung des Spiels lesen Sie bitte die README.txt. Neue Level können Sie mit einem Text-Editor erstellen, bspw. indem Sie die Datei ./level5/labyrinth editieren. Alle folgenden Aufgaben können Sie wahlweise mit labrys.32 oder labrys.64 lösen.
-
 ##  1. Cracking: Sie wollen für das Spiel nicht zahlen und entscheiden sich, es zu cracken.
 
 ### a) Keygen:
@@ -22,11 +20,11 @@ A `SEGMENTATION FAULT` happens when the game is closed, but the functionality of
 
 ##  2. Cheating: Sie verschaffen sich Vorteile gegenüber Mitspielern indem Sie cheaten.
 
-### a) Wallhack: Modifizieren Sie das Spiel, so dass Sie horizontal durch Wände laufen können ohne dabei herunterzufallen. Tipp: Verändern Sie die Methode(n) collide.
+### a) Wallhack: Modifizieren Sie das Spiel, so dass Sie horizontal durch Wände laufen können ohne dabei herunterzufallen.
 
 The executable `labrys.64.wallhack` contains the game with a wallhack. This was achieved by forcing the return value of the function `_ZN4Wall7collideEPfi` to be always `0x00`, so collisions with walls are never detected and the player can walk through them freely.
 
-### b) Flyhack: Modifizieren Sie das Spiel, so dass Sie fliegen können. Tipp: Verändern Sie die Methode gravity.
+### b) Flyhack: Modifizieren Sie das Spiel, so dass Sie fliegen können.
 
 The executable `labrys.64.flyhack` contains the game with a flyhack. This was achieved by changing an instruction of the function `_ZN6Player10save_stateEv` so that the variable `flying` is always set to `0x01` independently of the value of `spellEagle`, so the player can fly all the time.
 
@@ -36,7 +34,7 @@ The executable `labrys.64.speedhack` contains the game with a speedhack. This wa
 
 ##  3. Exploitation: Sie verteilen selbst erstellte Levels um Ihre Mitspieler zu exploiten.
 
-### a) Shellcode Injection: Gestalten Sie Level 5 derart, dass Schadcode auf dem Stack des Spielers ausgeführt wird. Beachten Sie, dass ASLR eingeschaltet und NX ausgeschaltet sind. Tipp: Verwenden Sie zur Demonstration den Shellcode von den Folien oder beliebigen Shellcode aus dem Internet, um /bin/sh auszuführen.
+### a) Shellcode Injection: Gestalten Sie Level 5 derart, dass Schadcode auf dem Stack des Spielers ausgeführt wird. Beachten Sie, dass ASLR eingeschaltet und NX ausgeschaltet sind.
 
 The exploit consists of two parts:
 
@@ -49,4 +47,6 @@ Now that we control the instruction pointer, we have to inject the shellcode and
 
 In order to perform the exploit, run `python3 shellcode-inject.py`. It will write a payload into `level5/labyrinth` that redirects the flow to the address `0xffa41fb8` and also will write the shellcraft to `shellcode.32`. Both files are included with the solution as well. If you keep running `SHELLCODE=$(cat shellcode.32) ./labrys.32`, eventually `0xffa41fb8` will point to some part of the shellcraft, and a shell will be spawned if you select level 5.
 
-### b) Return Oriented Programming: Verwenden Sie nun die labrys_rop.{32,64} Binaries und beachten Sie, dass diese mit NX-Unterstützung kompiliert sind, d.h. starten Sie beliebigen Schadcode ohne ausführbaren Stack. Tipp: Tools wie github.com/JonathanSalwan/ROPgadget und github.com/sashs/Ropper unterstützen Sie bei der Suche nach Gadgets.
+### b) Return Oriented Programming: Verwenden Sie nun die labrys_rop.{32,64} Binaries und beachten Sie, dass diese mit NX-Unterstützung kompiliert sind, d.h. starten Sie beliebigen Schadcode ohne ausführbaren Stack.
+
+For this challenge, I used the `Ropper` tool to generate a rop chain for the `labrys_rop.64` executable (more specifically `ropper --file labrys_rop.64 --chain "execve cmd=/bin/sh"`), and changed it slightly in order to perform the exploit. The changes consist mostly of using the same `cyclic` method from the previous exercise to generate the padding inserted before the rop chain (for the 64 bit version it must be until "vaaf" instead) and writing the result to `level5/labyrinth` instead of printing it. After running `python3 rop-chain.py` to generate the labyrinth file, you can perform the exploit by running `./labrys_rop.64` and selecting level 5 to spawn a shell.
