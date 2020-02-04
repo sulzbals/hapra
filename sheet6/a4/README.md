@@ -8,9 +8,7 @@
 
 * The program has a lot of junk code. There are useless instructions like jumps that point to the next instruction and also several occurences of instructions that copy the contents of a register to the same register.
 
-* There are also boolean evaluations whose operands are both the same register, therefore being examples of opaque predicate.
-
-* All the functions (including `main`) are merged into an unlabeled `.text` section. When calling `signal`, for example, the pointer to the function defining the new handler is an address instead of a label.
+* All the functions (including `main`) are merged into the `.text` section. There are no labels.
 
 ### Dynamic Analysis Protection
 
