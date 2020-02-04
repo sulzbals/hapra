@@ -45,7 +45,7 @@ In order to perform the first part of the exploit, I used the `cyclic` method fr
 
 Now that we control the instruction pointer, we have to inject the shellcode and point to it. Since `ASLR` is enabled, the best we can do is having a good guess of where this code will be loaded to. That is why NOP sleding is used, so if the flow is redirected to any of the NOPs that were injected, the shellcode is executed as well. The shellcraft is injected by setting an environment variable (which is loaded to the stack) containing it.
 
-In order to perform the exploit, run `python3 shellcode-inject.py`. It will write a payload into `level5/labyrinth` that redirects the flow to the address `0xffa41fb8` and also will write the shellcraft to `shellcode.32`. Both files are included with the solution as well. If you keep running `SHELLCODE=$(cat shellcode.32) ./labrys.32`, eventually `0xffa41fb8` will point to some part of the shellcraft, and a shell will be spawned if you select level 5.
+In order to perform the exploit, run `python3 shellcode-inject.py`. It will write a payload into `level5/labyrinth` that redirects the flow to the address `0xffa41fb8` and also will write the shellcraft to `shellcode.32`. If you keep running `SHELLCODE=$(cat shellcode.32) ./labrys.32`, eventually `0xffa41fb8` will point to some part of the shellcraft, and a shell will be spawned if you select level 5.
 
 ### b) Return Oriented Programming: Verwenden Sie nun die labrys_rop.{32,64} Binaries und beachten Sie, dass diese mit NX-Unterstützung kompiliert sind, d.h. starten Sie beliebigen Schadcode ohne ausführbaren Stack.
 
