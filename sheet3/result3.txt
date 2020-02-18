@@ -1,0 +1,7 @@
+Stud23 (Lucas Sulzbach) scored 17.0 points (=> 1.7)
+1a) (2.0p) Comments:  Good!
+1b) (1.0p) Comments:  Not really perfect... the rest of the program still runs in high privileged mode... better: at the start set privs low with seteuid and getuid and only give higher privs for the socket opening... (-)
+2a) (3.0p) Comments:  Nice!
+2b) (1.0p) Comments:  Correct!
+3a) (3.0p) Comments:  Thats not really a reverse shell -> the victim must send echo request packets first and the attacker answers with echo reply packets on them -> you only use echo request an let the attacker send the first packet -> the right way would be to let the victim send icmp heartbeats and if the attacker is up he answers (-1) everything else is ok!
+4a) (7.0p) Comments:  Nearly everything hooked and rootkit made persistent! lastlog hide is missing... (-2) Well done!

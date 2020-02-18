@@ -1,0 +1,9 @@
+Stud23 (Lucas Sulzbach) scored 15.5 points (=> 2.3)
+1a) (2.0p) Comments:  You found the hidden credentials but you could not decode them (base64)... (-0.5) Your explanations for DbgAnal and mainly DyAnal are way too short and not enough... -> just "system properties" does not tell anything (-0.5) the rest is good!
+2a) (1.0p) Comments:  Everything explained nicely! btw: you could have created a new "onetime" google account for test purposes ;)
+2b) (3.0p) Comments:  Works! deleting the calender entry would have been even better :)
+3a) (1.0p) Comments:  Good!
+3b) (1.0p) Comments:  Runs!
+3c) (2.0p) Comments:  You found the cheatengine and decoded it! Also you nearly found the first real cheat -> with bruteforcing and good guessing you could have gotten the remaining chars so i will give you the points for that cheat ;) (Reversing<3) following you did not get the second cheat (-1)
+4a) (5.0p) Comments:  Well done! The third click is not coverd with overlays (-1) but everything else is good!
+4b) (0.5p) Comments:  Your AS Service does not prevent uninstall/stop (-1) the installation of another app is not working automatically -> the dialog for installation is there but your AS does not click/do anything... (-0.5)

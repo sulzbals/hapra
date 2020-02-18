@@ -1,0 +1,8 @@
+Stud23 (Lucas Sulzbach) scored 18.0 points (=> 1.3)
+1a) (2.0p) Comments:  Its really slow... with multithreading you could be done in seconds... ;)
+1b) (2.0p) Comments:  OK!
+2a) (4.0p) Comments:  Your explanation of the attack is good -> the attack vector is from the internet! The ideas to prevent are not specific enough (just updating?) -> disabling is often not an option... (-1)
+3a) (3.0p) Comments:  you really just spoof arp and intercept http traffic not dns packets... but this also works :) 
+3b) (2.0p) Comments:  Good!
+3c) (1.0p) Comments:  OK!
+4a) (4.0p) Comments:  To be sure that all handshakes are performed in parallel you need one thread per connection and a barrier (simply starting the threads in a loop is not enough -> thread 0 could be finished before thread n even started)... then you can start all connections and wait at the barrier with the handshake until all are connected (-1) all in all the rest looks good!

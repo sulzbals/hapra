@@ -1,0 +1,8 @@
+Stud23 (Lucas Sulzbach) scored 14.5 points (=> 2.7)
+1a) (5.5p) Comments:  sqli6-7 missing (-1.5) xss1-3 missing (-1)
+2a) (0.5p) Comments:  OK!
+2b) (1.0p) Comments:  Nice! It is even easier because the filter for the content does not always use the unique safe ID but the email and firstname...
+2c) (1.0p) Comments:  Good!
+2d) (2.0p) Comments:  Well done!
+2e) (0.5p) Comments:  Works!
+3a) (4.0p) Comments:  xss and csrf with patch -> gives no flags but you describe an attack and have a script that works (+0.5) 4.py does not really give you any flags... export and transactionhistory + patch (+2) iframe curl (not really directory traversal) you found the exploit but you did not get any flags from it + patch (+1.5)
