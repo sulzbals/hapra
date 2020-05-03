@@ -1,0 +1,8 @@
+Stud23 (Lucas Sulzbach) scored 28.5 points (=> 1.0)
+1a) (2.5p) Comments:  Correct!
+2a) (2.5p) Comments:  Well done!
+3a) (3.0p) Comments:  Perfect!
+3b) (2.5p) Comments:  In your wallhack you can not walk ontop of walls anymore... you fall down (-0.5) everything else is good!
+3c) (8.0p) Comments:  The Shellcode-Injection with NOPs does only work with enough luck and "weak" ASLR so you have to restart it several times... A better approach would have been the use of a "jmp esp" gadget so you do not need to know the real addresses of the stack ;) (-1) Your ROP-Chain works perfectly!
+4a) (4.0p) Comments:  OK!
+5a) (6.0p) Comments:  Works!
